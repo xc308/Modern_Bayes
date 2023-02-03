@@ -357,5 +357,19 @@ ggplot(sim_Prior_DF, aes(x = mu_prior, y = lambda_prior)) +
   ggtitle('samples from prior distribution') + 
   theme_bw()
 
+plot(mu_prior, lambda_prior)
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
