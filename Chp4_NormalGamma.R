@@ -201,13 +201,161 @@ Prob_T = count_T / 1e6
   # affect children's IQ change. 
 
 
+##--------------------------------------------
+# Alternative method for posterior derivation
+##--------------------------------------------
+# ref: https://github.com/resteorts/modern-bayes/blob/master/TA-lab-material/Lab%2004/problem-statement/lab-04.pdf
+
+a_pos = a + n / 2
+c_pos = c + n
+m_pos = c * m + n * mean(data) / (c + n)
+b_pos = b + 1/2 * sum((data - mean(data))^2) + n * c * (mean(data) - m)/(2 * (c + n))
+
+## corresponding code
+
+prior = data.frame(m = 0, c = 1, a = 1/2, b = 10^2*a)
+findPostPars = function(prior, data) {
+  PostPar = NULL
+  a = prior$a
+  c = prior$c
+  m = prior$m
+  b = prior$b
+  n = length(data)
+  
+  PostPar = data.frame(
+    m = (c * m + n * mean(data)) / (c + n),
+    c = c + n,
+    a = a + n / 2,
+    b = b + 1/2*sum((data - mean(data))^2) + n*c*(mean(data) - m)^2 / (2*(c + n))
+  )
+  
+  return(PostPar)
+}
+
+PostParS <- findPostPars(prior, data = x)
+PostParC <- findPostPars(prior, data = y)
+
+rbind(`Prior Pars` = prior, 
+      `Spurters Post Pars` = round(PostParS, 2),
+      `Control Post Pars` = round(PostParC, 2))
+
+xtable::xtable(rbind(`Prior Pars` = prior, 
+                     `Spurters Post Pars` = round(PostParS, 2),
+                     `Control Post Pars` = round(PostParC, 2)),
+               caption = "Prior parameters and posterior parameter")
 
 
 
+#----------------------------------
+# Sample from two posterior group
+#----------------------------------
+# number of posterior simulations
+#sim = 1000 for plot
+sim = 1e6 # for next section prob calculation
+
+# initialize vectors to store samples
+mu_s = NULL
+lambda_s = NULL
+mu_c = NULL
+lambda_c = NULL
+
+# first sample from gamma to get post samples for lamda_s and lamda_c
+set.seed(03-02-2023)
+
+lambda_s = rgamma(n = sim, shape = PostParS$a, rate = PostParS$b)
+lambda_c = rgamma(sim, shape = PostParC$a, rate = PostParC$b)
+
+# with the post samples for lambda
+# sample posterior mean given lambda 
+  # mu | lambda ~ N(mu, (c*lambda)^{-1})
+
+mu_s = sapply(sqrt((c*lambda_s)^{-1}), rnorm, n = 1, mean = PostParS$m)
+# rnorm(n, mean, sd )
+mu_c = sapply(sqrt((c*lambda_c)^{-1}), rnorm, n = 1, mean = PostParC$m)
 
 
+## store simulations
+simDF = data.frame(lambda = c(lambda_s, lambda_c),
+           mu = c(mu_s, mu_c),
+           Treatment = rep(c('Spurters', 'Controls'),
+                           each = sim)
+           )
+
+head(simDF)
+# 3 vars : lambdda, mu, treatment
+  # 2000 rows, 
+    #the 1st 1000 is spurters
+    # the 2nd 1000 is controls
 
 
+simDF$stdev <- simDF$lambda^{-1/2}
+# -1: change to variance
+# sqrt: change to std deviation
+
+
+#---------------------
+# plot the simulations
+#---------------------
+
+ggplot(simDF, aes(x = mu, y = stdev,
+                  colour = Treatment,
+                  shape = Treatment)) +
+  geom_point(alpha = 0.2) + 
+  labs(x = expression(paste(mu, "(mean change in IQ)")),
+       y = expression(paste(lambda^{-1/2}, "(std. dev. of change in IQ)"))) + 
+  ggtitle("Posterior samples") + 
+  theme_bw()
+
+# for a given mean of the IQ change, 
+  # spurters group show larger variations
+  # while control groups show much less variations
+
+# for a given std.dev level of IQ change
+  # spurters group's mean range is more clustered in  
+    # postive change from (0, 50) change in IQ
+  # control group's mean range is more spread out
+    # ranging from (-50, 50), means there are students
+      # whose IQ decreases after one year of study
+  
+
+#---------------------------------------
+# compare posterior mean between two groups
+#---------------------------------------
+# calculate P(mu_s > mu_c | data) = ?
+
+sum(mu_s > mu_c) / 1e6
+# [1] 0.703124
+
+
+#---------------------
+# prior assumptions
+#---------------------
+
+#There are a few ways you can check that the prior conforms with our prior beliefs. 
+# Let's go back and checks these. 
+# Draw some samples from the prior and look at them---
+# this is probably the best general strategy. 
+# See Figure \ref{figure:pygmalion-prior}. 
+# It's also a good idea to look at sample hypothetical datasets 
+# $X_{1:n}$ drawn using these sampled parameter values. 
+
+
+# sample from gamma distribution for a = 1/2, b = 10^2*a
+# then sample from mu |gam ~ N(m = 0, (c*lambda)^{-1})
+# with c = 1
+
+lambda_prior = rgamma(1000, shape = 1/2, rate = 10^2*a)
+mu_prior = sapply(lambda_prior^{-1/2}, rnorm, n = 1, mean = 0)
+
+sim_Prior_DF = data.frame(Lambda_prior = lambda_prior, 
+           mu_prior = mu_prior)
+
+ggplot(sim_Prior_DF, aes(x = mu_prior, y = lambda_prior)) +
+  geom_point(alpha = 0.9) + 
+  labs(x = expression(paste(mu, "(prior mean of IQ change)")),
+       y = expression(paste(lambda^{-1/2}, "(std.dev. of IQ change)")))+
+  ggtitle('samples from prior distribution') + 
+  theme_bw()
 
 
 
