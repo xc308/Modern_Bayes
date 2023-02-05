@@ -225,3 +225,46 @@ outputs2_Beta$ratio
 # [1] 0.500578
 hist(outputs2_Beta$Samples)
 
+
+#-------------------------------------------------
+# Further modify sampling function to involve plot
+#-------------------------------------------------
+
+RJ_Smp <- function(k, f, envelop = "unif", plot = T, par1, par2) {
+  
+  r_envelop <- match.fun(paste0("r", envelop))
+  d_envelop <- match.fun(paste0("d", envelop))
+  
+  x <- r_envelop(k, par1, par2)
+  y <- runif(k, min = 0, max = d_envelop(x, par1, par2))
+  
+  Samples <- x[y < f(x)]
+  ratio <- mean(y < f(x))
+  
+  if(plot) {
+    hist(Samples, probability = T,
+         main = paste0("Histogram of ", k, " samples from ", envelop,
+         "(", par1, ",", par2, "). \n
+         acceptance ratio is ", round(ratio, 2)), 
+         cex.main = .75)
+  }
+  list(Samples = Samples, AC_ratio = ratio)
+}
+
+par(mfrow = c(2, 2))
+RJ_Smp(1e2, f = f, envelop = "unif", plot = T, par1 = 0, par2 = 1)
+RJ_Smp(1e5, f = f, envelop = "unif", plot = T, par1 = 0, par2 = 1)
+RJ_Smp(1e2, f = f, envelop = "beta", plot = T, par1 = 2, par2 = 2)
+RJ_Smp(1e5, f = f, envelop = "beta", plot = T, par1 = 2, par2 = 2)
+
+
+
+
+
+
+
+
+
+
+
+
