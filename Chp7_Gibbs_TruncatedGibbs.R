@@ -75,14 +75,20 @@ b.post.var <- var(res[, 2]) # [1] 0.4692718
 # Truncated Gibbs Sampler 
 #-------------------------
 # A toy: 
+  # want to sample from joint p(x, y)
+  # but difficult
+  # so sample from full conditional p(x|y) or vice versa
+  # the sample pair (x, y) can then be thought of 
+      # one sample from desired joint p(x, y)
+
   # pure sample from conditional distribution 
   # not posterior distribution that will involve data
 
-
+# want to sample from a truncated joint distribution, but difficult
 # p(x, y) propto exp^{-xy} I(x, y \in (0, c))
 
-# want to sample from a truncated full conditional distri
-
+# sample from full conditional, 
+# the outcome pair (xi, yi), i = 1:n.sims can be thought of coming from desired joint
 # p(x|y) propto_x p(x, y) 
           # propto exp(-xy) I(0< x < c)
           # propto exp(x|y) I(x < c)
