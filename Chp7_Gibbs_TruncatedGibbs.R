@@ -65,16 +65,106 @@ a.post.var <- var(res[, 1]) # [1] 0.7447557
 b.post.mean <- mean(res[, 2]) # [1] 0.8628327
 b.post.var <- var(res[, 2]) # [1] 0.4692718
 
-
-
-
-
-
 # theoretical posterior mean for a and b
 # E[a|x_1:n] = shape / rate = (n + 1) / (b * sum.x + 1)
 # E[b|x_1:n] = shape / rate = (n + 1) / (a * sum.x + 1)
 
-a.post.mean.thry <- (n + 1) / (b * sum.x + 1)
+
+
+#-------------------------
+# Truncated Gibbs Sampler 
+#-------------------------
+# A toy: 
+  # pure sample from conditional distribution 
+  # not posterior distribution that will involve data
+
+
+# p(x, y) propto exp^{-xy} I(x, y \in (0, c))
+
+# want to sample from a truncated full conditional distri
+
+# p(x|y) propto_x p(x, y) 
+          # propto exp(-xy) I(0< x < c)
+          # propto exp(x|y) I(x < c)
+
+# p(x|y) is a truncated version of Exp(y) distribution
+# is equivalent to 
+  # x ~ Exp(y)
+  # then conditioning on x, x<c
+
+# refer to this truncated Exp(y) as TExp(y, (0, c))
+
+# to sample from this truncated TExp(y, (0, c))
+  # 1. sample u ~ Unif(0, F(c|theta = y))
+      # F(c|theta = y) = 1 - exp^{-theta*c}
+
+  # 2. sample z = F_inv(u|theta = y)
+              # = - 1/theta * log(1-u)
+
+
+## Gibbs sampler for truncated distribution
+
+  # initialise x0, y0
+  # sample x1 ~ TExp(y0, (0, c)), i.e., 
+    # 1. sample u ~ Unif(0, 1 - exp^{-theta = y0*c})
+    # 2. calculate z = - 1/theta = y0 * log(1-u)
+
+  # sample y1 ~ TExp(x1, (0, c)), i.e.,
+    # 1. sample u ~ Unif(0, 1 - exp^{-theta = x1*c})
+    # 2. calculate z = - 1/theta = x1 * log(1-u)   
+
+
+## args:
+  # x0, y0 : initial values
+  # c : turncate limit 
+  # n.sims
+
+
+## return:
+  # a matrix: 2 colums, n.sims rows
+    # the 1st col: samples for x in p(x|y)
+    # the 2nd col: samples for y in p(x|y)
+
+Truncat_Gibbs_smp <- function(start.x, start.y, C, n.sims) {
+  Res <- matrix(NA, nrow = n.sims, ncol = 2)
+  Res[1, ] <- c(start.x, start.y)
+  
+  for (i in 2:n.sims) {
+    # sample xi from TExp(y_i-1, (0, c))
+    CDF = 1 - exp(- C * Res[i-1, 2])
+    u = runif(1, min = 0, max = CDF)
+    z = - 1/Res[i-1, 2] * log(1 - u)
+    Res[i, 1] = z
+    
+    # sample yi from TExp(xi, (0, c))
+    CDF = 1 - exp(- C * Res[i, 1])
+    u = runif(1, 0, CDF)
+    z = - 1/Res[i, 1] * log(1 - u)
+    Res[i, 2] = z
+  }
+  return(Res)
+}
+
+Trunc_toy <- Truncat_Gibbs_smp(start.x = 1, start.y = 1, C = 2, n.sims = 1e4)
+
+par(mfrow = c(1, 1))
+plot(Trunc_toy, type = "p", cex = 0.025, col = "blue")
+
+
+
+      
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
