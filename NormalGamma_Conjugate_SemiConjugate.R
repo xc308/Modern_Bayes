@@ -132,9 +132,16 @@ hist(y)
 lines(dnorm(y, mean = mu_lam_pst[, 1], sd = sqrt(mu_lam_pst[, 2])),
       col = "red")
 
+plot(mu_lam_pst[, 1], mu_lam_pst[, 2])
 
+# trace plots
+plot(mu_lam_pst[, 1], type = "l", main = "Trace plot of mu_post")
+plot(mu_lam_pst[, 2], type = "l", main = "Trace plot of lambda_post")
 
+lines(density(mu_lam_pst[, 1]))
+hist(mu_lam_pst[, 1], probability = T)
+lines(density(mu_lam_pst[, 1]), col = "red")
 
-
-
-
+hist(mu_lam_pst[, 2], probability = T, 
+     main = "Histogram of precision lambda")
+lines(density(mu_lam_pst[, 2]), col = "red")
