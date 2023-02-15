@@ -25,6 +25,9 @@
 #----------------
 # Conjugate case
 #----------------
+# given priors and data, 
+  # return posteriors of parameters
+  # by closed known form
 
 priors = data.frame(m = 0, c = 1, a = 1/2, b = 50)
 
@@ -104,7 +107,6 @@ Semi_conj_Gibbs_post <- function(start.mu, start.lam, n.sim, priors, data) {
   return(Pars_post)
 }
 
-
 semi_post <- Semi_conj_Gibbs_post(start.mu = 1, start.lam = 1, 
                                   priors = priors, 
                                   n.sim = 1e4, data = x)
@@ -116,32 +118,120 @@ lam_post <- semi_post[, 2]
 mean(mu_post) # [1] 0.2356989
 mean(lam_post) # [1] 0.001388827
 
+
+priors2 <- data.frame(mu_0 = 0, lam_0 = 1, a = 1/2, b = 10)
+semi_post2 <- Semi_conj_Gibbs_post(start.mu = 1, start.lam = 1, priors = priors2,
+                     n.sim = 1e4, data = x)
+
+mean(semi_post2[, 1]) # [1] 0.2598341
+mean(semi_post2[, 2]) # [1] 0.001402335
+
+
+priors3 <- data.frame(mu_0 = 0, lam_0 = 1, a = 1/2, b = 1)
+semi_post3 <- Semi_conj_Gibbs_post(start.mu = 1, start.lam = 1, priors = priors3,
+                                   n.sim = 1e4, data = x)
+
+mean(semi_post3[, 1]) # [1] 0.2502062
+mean(semi_post3[, 2]) # [1] 0.0014111
+
+
+
+## data in Hoff P94
 y <- c( 1.64, 1.70, 1.72, 1.74, 1.82, 1.82, 1.82, 1.90, 2.08)
 mean(y) # [1] 1.804444
-var(y) # [1] 0.01687778
-priors <- data.frame(mu_0 = 1, lam_0 = 1, a = 1, b = 2)
+var(y) # [1] 0.01687778 sigma^2
+sqrt(var(y)) # [1] 0.1299145
+1/var(y) # [1] 59.24951  lambda = 1/sigma^2
+# for prior parameter of lambda
+  # E[lamda] = a/b ~= 60
+  # so if a set to 1, b ~= 1/60
+# 1/60 = [1] 0.01666667
 
+priors <- data.frame(mu_0 = 1, lam_0 = 1, a = 1, b = 1)
 mu_lam_pst <- Semi_conj_Gibbs_post(start.mu = 1, start.lam = 1, n.sim = 1e4, 
                      priors = priors, data = y)
 
 head(mu_lam_pst)
 mean(mu_lam_pst[, 1]) # [1] 1.760803
-mean(mu_lam_pst[, 2]) # [1] 2.422582
+mean(mu_lam_pst[, 2]) # [1] 2.422582 precision on average
+1/mean(mu_lam_pst[, 2]) # [1] 0.4123006 var on average
 
-hist(y)
-lines(dnorm(y, mean = mu_lam_pst[, 1], sd = sqrt(mu_lam_pst[, 2])),
-      col = "red")
 
+priors2 <- data.frame(mu_0 = 1, lam_0 = 1, a = 1, b = 0.01)
+mu_lam_pst2 <- Semi_conj_Gibbs_post(start.mu = mean(y), start.lam = 1/var(y), n.sim = 1e4, 
+                                   priors = priors2, data = y)
+
+mean(mu_lam_pst2[, 1]) # [1] 1.801969
+mean(mu_lam_pst2[, 2]) # [1] 64.47763
+
+
+#--------------------------
+# Compare b = 1 vs b = 0.01
+#--------------------------
+
+par(mfrow = c(1, 2))
+plot(mu_lam_pst[, 1], mu_lam_pst[, 2], main = "b = 1")
+plot(mu_lam_pst2[, 1], mu_lam_pst2[, 2], main = "b = 0.01")
+
+# conclusion: how to set rate parameter in gamma distri for precison lambda
+  # y <- c( 1.64, 1.70, 1.72, 1.74, 1.82, 1.82, 1.82, 1.90, 2.08)
+  # var(y) = sigma^2 = 1/lambda =  [1] 0.01687778
+  # lambda on average shall be 1/0.01687778 ~= 60
+  # by formula, E[lambda] = a/b
+    # so if set a = 1, b ~= 1/60 ~= 0.016
+
+
+#----------
+# plots
+#----------
 plot(mu_lam_pst[, 1], mu_lam_pst[, 2])
 
 # trace plots
 plot(mu_lam_pst[, 1], type = "l", main = "Trace plot of mu_post")
 plot(mu_lam_pst[, 2], type = "l", main = "Trace plot of lambda_post")
 
-lines(density(mu_lam_pst[, 1]))
+
 hist(mu_lam_pst[, 1], probability = T)
 lines(density(mu_lam_pst[, 1]), col = "red")
 
 hist(mu_lam_pst[, 2], probability = T, 
      main = "Histogram of precision lambda")
 lines(density(mu_lam_pst[, 2]), col = "red")
+
+
+#--------------------------------------
+# empirical quantiles of Gibbs samples
+#--------------------------------------
+
+## b = 1
+# quantile for mu_post
+quantile(mu_lam_pst[, 1], c(.025, .5, .975))
+#     2.5%      50%    97.5% 
+# 1.286193 1.764634 2.218488 
+
+# quantile for lambda_post
+quantile(mu_lam_pst[, 2], c(.025, .5, .975))
+#      2.5%       50%     97.5% 
+#   1.516578 4.338744 9.521027 
+
+# CI for population standard deviation
+quantile(sqrt(mu_lam_pst[, 2]^{-1}), c(.025, .5, .975))
+#   2.5%       50%     97.5% 
+# 0.3240844 0.4800849 0.8120215 
+
+
+## b = 0.01
+quantile(mu_lam_pst2[, 1], c(.025, .5, .975))
+#    2.5%      50%    97.5% 
+# 1.707953 1.803137 1.895942
+
+quantile(mu_lam_pst2[, 2], c(.025, .5, .975))
+#      2.5%       50%     97.5% 
+# 20.45162  60.17795 133.14719 
+
+quantile(sqrt(mu_lam_pst2[, 2]^{-1}), c(.025, .5, .975))
+#      2.5%        50%      97.5% 
+# 0.08666306 0.12890842 0.22112416 
+# sqrt(var(y)) # [1] 0.1299145
+
+
