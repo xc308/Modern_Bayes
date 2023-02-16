@@ -135,8 +135,9 @@ mean(semi_post3[, 1]) # [1] 0.2502062
 mean(semi_post3[, 2]) # [1] 0.0014111
 
 
-
+#-------------------
 ## data in Hoff P94
+#-------------------
 y <- c( 1.64, 1.70, 1.72, 1.74, 1.82, 1.82, 1.82, 1.90, 2.08)
 mean(y) # [1] 1.804444
 var(y) # [1] 0.01687778 sigma^2
@@ -233,5 +234,47 @@ quantile(sqrt(mu_lam_pst2[, 2]^{-1}), c(.025, .5, .975))
 #      2.5%        50%      97.5% 
 # 0.08666306 0.12890842 0.22112416 
 # sqrt(var(y)) # [1] 0.1299145
+
+
+#--------------------------------------------------------
+# MCMC diagnostics for Markov Chain of theta and sigma2
+#--------------------------------------------------------
+
+# trace plot check for NOT convergence
+plot(mu_lam_pst2[, 1], type = "l", main = "Trace plot of mu_post")
+plot(mu_lam_pst2[, 2], type = "l", main = "Trace plot of lambda_post")
+## no indication of not convergence
+# indicate immediate convergence and low degree of autocorrelation
+
+
+# acf
+acf_mu <- acf(mu_lam_pst2[, 1])
+acf_mu$acf
+# lag-1 autocorrelation -0.0045750332
+
+install.packages("coda")
+library(coda)
+
+effectiveSize(mu_lam_pst2[, 1])
+# 10000 
+# the same as the number of iteration of MC simulation
+
+
+acf_sig <- acf(mu_lam_pst2[, 2])
+acf_sig$acf 
+# lag-1 autocorrelation  0.0955795905
+
+effectiveSize(mu_lam_pst2[, 2])
+# 8254.352
+
+
+
+
+
+
+
+
+
+
 
 
