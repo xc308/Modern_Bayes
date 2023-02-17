@@ -224,7 +224,7 @@ Running_avg <- function(Data) {
   
   plot(1:n, avg, type = "l", 
        main = bquote("Running average of posterior of "~alpha),
-       ylab = expression("E" * (alpha ~ "|" ~ Data )), 
+       ylab = expression("E" * (alpha ~ "|" ~ "Data" )), 
        lwd = 2)
   
 }
