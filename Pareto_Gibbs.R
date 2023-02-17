@@ -187,3 +187,28 @@ mean(alf_c_post[, 1])
 
 mean(alf_c_post[, 2])
 # [1] 749286
+
+
+par(mfrow = c(1, 1))
+hist(alf_c_post[, 1], probability = T,
+     main = bquote("Histogram of " ~ alpha),
+     xlab = expression(alpha))
+
+
+#-------------------
+# Credible interval
+#-------------------
+# ref: https://stackoverflow.com/questions/62849577/r-hpd-highest-posterior-density-interval-based-on-samples-from-posterior-win
+library(coda)
+
+# as.mcmc() to transform alf_c_post[, 1] into mcmc class
+# HPDinterval requires input mcmc class obj
+CI_0.9 <- HPDinterval(as.mcmc(alf_c_post[, 1]), prob = 0.9)
+abline(v = CI_0.9[1], col = "red")
+abline(v = CI_0.9[2], col = "red")
+
+
+
+
+
+
