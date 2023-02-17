@@ -191,7 +191,7 @@ mean(alf_c_post[, 2])
 
 par(mfrow = c(1, 1))
 hist(alf_c_post[, 1], probability = T,
-     main = bquote("Histogram of " ~ alpha),
+     main = bquote("Estimated density of posterior of " ~ alpha ~ "with 90% CI"),
      xlab = expression(alpha))
 
 
@@ -204,10 +204,35 @@ library(coda)
 # as.mcmc() to transform alf_c_post[, 1] into mcmc class
 # HPDinterval requires input mcmc class obj
 CI_0.9 <- HPDinterval(as.mcmc(alf_c_post[, 1]), prob = 0.9)
-abline(v = CI_0.9[1], col = "red")
-abline(v = CI_0.9[2], col = "red")
+abline(v = CI_0.9[1], col = "red", lwd = 2)
+abline(v = CI_0.9[2], col = "red", lwd = 2)
 
 
+#-------------------
+# Running averaging
+#-------------------
+
+Running_avg <- function(Data) {
+  n <- length(Data)
+  
+  total <- 0
+  avg <- c()
+  for (i in 1:n) {
+    total = total + Data[i]
+    avg[i] = total / i
+  }
+  
+  plot(1:n, avg, type = "l", 
+       main = bquote("Running average of posterior of "~alpha),
+       ylab = expression("E" * (alpha ~ "|" ~ Data )), 
+       lwd = 2)
+  
+}
+
+Running_avg(alf_c_post[, 1])
+
+# ref: https://stackoverflow.com/questions/15530202/add-vertical-bar-in-expression-to-plot
+expression("E" * (X ~ "|" ~ Y))
 
 
 
