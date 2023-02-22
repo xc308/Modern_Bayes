@@ -37,7 +37,7 @@ sqrt(var(Heights))
 
 
 #------------------------------------------
-# Gibss sampler for two-components mixture
+# Gibbs sampler for two-components mixture
 #------------------------------------------
 
 rbern(1, 0.5) # generate 1 sample from p^x (1-p)^(1-x), x = 0,1
@@ -69,7 +69,12 @@ Z = rbern(n = length(Heights), prob = Pi)
 #------------------------------------------
 ## Gibbs Sampler for Two-components Mixture
 #------------------------------------------
-Mixture_Gibbs <- function(Pi_start, mu0_start, mu1_start, Z_start, n.sim, burn.in, Data) {
+Mixture_Gibbs <- function(Pi_start, mu0_start, mu1_start, Z_start, 
+                          n.sim, burn.in, Data, 
+                          Thinning = TRUE, Thin = 5) {
+  
+  if (!is.vector(Data)) print("Data must be one vector!")
+  
   Z = Z_start
   n = length(Data)
   
@@ -112,22 +117,35 @@ Mixture_Gibbs <- function(Pi_start, mu0_start, mu1_start, Z_start, n.sim, burn.i
     ## collect posteriors 
     Res[i, ] <- c(Pi_pst, mu0_pst, mu1_pst)
   }
-  return(Res[burn.in:n.sim, ])
+  
+  if (Thinning) {
+    Res_bn <- Res[burn.in:n.sim, ]
+    return(Res_bn[seq(1, nrow(Res_bn), Thin), ])
+  } else{
+    return(Res[burn.in:n.sim, ])
+  }
 }
+
 
 
 #-------------
 # Test on data
 #-------------
 
-## Starting values setting for desired unkowns
+## Starting values setting for desired unknown
 Pi = .5   # starting proportion for two components is 50:50
 mu0 = mu1 = m 
 Z = rbern(n = length(Heights), prob = Pi)
 
-
 Res <- Mixture_Gibbs(Pi_start = Pi, mu0_start = mu0, mu1_start = mu1, 
                      Z_start = Z, n.sim = 1e3, burn.in = 1, Data = Heights)
+
+
+
+## with thinnig
+Res_thin <- Mixture_Gibbs(Pi_start = pi, mu0_start = mu0, mu1_start = mu1, 
+              Z_start = Z, n.sim = 1e4, burn.in = 1e3, Data = Heights, 
+              Thinning = T, Thin = 50)
 
 
 
@@ -147,23 +165,86 @@ Res <- Mixture_Gibbs(Pi_start = Pi, mu0_start = mu0, mu1_start = mu1,
 # posterior mean
 # HPD in coda for Credible intervals
 
+Pi_pst <- Res[, 1]
+mu0_pst <- Res[, 2]
+mu1_pst <- Res[, 3]
+
+## Trace plot of Pi
+n.sim = 1e3
+
+plot(1:n.sim, Res[, 1], type = "l",
+       xlab = "Iterations", 
+       ylab = expression(paste(pi), " | Data"), 
+       main = bquote("Trace plot of ", pi))
 
 
 
+plot(1:n.sim, Res[, 2], type = "l", 
+     xlab = "Iterations",
+     ylab = expression(paste(mu, "0 | ", "Data")), 
+     main = bquote("Trace plot of" ~ mu*0))
 
 
+plot(1:n.sim, Res[, 3], type = "l",
+     xlab = "Iterations", 
+     ylab = expression(paste(mu, "1 | Data")),
+     main = bquote("Trace plot of "~mu*1) 
+       )
+
+par(mfrow = c(1,1))
+plot(Res[, 3], col = "blue", cex = 0.3)
+points(Res[, 2], col = "red", cex = 0.3)
+
+plot(Res[, 3], col = "blue", cex = 0.25,
+     ylim = c(min(Res[, 2]), max(Res[, 3])), 
+     xlab = "Iterations", 
+     ylab = "Mean height (cm)")
+
+points(Res[, 2], col = "red", cex = 0.25)
 
 
+## Lag-1 acf
+lag1_mu0 <- acf(Res[, 2])$acf[2]
+# 0.83
+
+lag1_mu1 <- acf(Res[, 3])$acf[2]
+# 0.83
 
 
+## after thinning 
+for(i in 1:3) {
+  lag1 <- vector()
+  lag1[i] <- acf(Res_thin[, i], plot = F)$acf[2]
+}
+acf(Res_thin[, 1])$acf[2] # [1] 0.008937144
+acf(Res_thin[, 2])$acf[2] # [1] 0.81456
+acf(Res_thin[, 3])$acf[2] # [1] 0.785681
 
 
+library(coda)
 
+effectiveSize(as.mcmc(Res_thin[, 2]))
+# 18.39464 
+
+effectiveSize(as.mcmc(Res_thin[, 3]))
+#    var1 
+# 21.60309 
+
+
+## Estimated density
+par(mar = c(3, 3, 5, 3))
+plot(density(Res_thin[, 2]), type = "l", col = "red")
+lines(density(Res_thin[, 3]), col = "blue")
+
+hist(Res_thin[, 2], probability = T)
 
 
 #-------
 # Try 
 #-------
+
+if (!is.vector(self_krul)) print("Data must be one vector!")
+
 # try for sum_{i:Zi == 0} Xi in M0
 str(Heights)
 # num [1:1257]
