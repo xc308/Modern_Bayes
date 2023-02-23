@@ -7,7 +7,7 @@ library(mice)  # selfreport data set containing measured heights
 library(dplyr)
 
 install.packages("LaplacesDemon")
-library(LaplacesDemon)
+library(LaplacesDemon) # for rbern
 
 
 #-----------
@@ -56,7 +56,8 @@ m = round(mean(Heights), 0) # 174
 sigma = round(sqrt(var(Heights)), 0)  # 10
 lambda = 1/(sigma^2)
 
-s = round(mean(H_M[, 2]) - mean(H_F[, 2]), 0) # 13
+#s = round(mean(H_M[, 2]) - mean(H_F[, 2]), 0) # 13
+s = 15 # from lecture notes
 l = 1/(s^2)
 
 
@@ -138,7 +139,8 @@ mu0 = mu1 = m
 Z = rbern(n = length(Heights), prob = Pi)
 
 Res <- Mixture_Gibbs(Pi_start = Pi, mu0_start = mu0, mu1_start = mu1, 
-                     Z_start = Z, n.sim = 1e3, burn.in = 1, Data = Heights)
+                     Z_start = Z, n.sim = 1e3, burn.in = 500, Data = Heights,
+                     Thinning = F)
 
 
 
@@ -209,6 +211,23 @@ lag1_mu0 <- acf(Res[, 2])$acf[2]
 
 lag1_mu1 <- acf(Res[, 3])$acf[2]
 # 0.83
+
+## estimated density
+plot(density(Res[, 2]), col = "red")
+plot(density(Res[, 3]), col = "blue")
+lines(density(Res[, 3]), col = "blue")
+
+plot(density(Res[, 3]), col = "red", 
+     xlim = c(168, 182), 
+     ylim = c(0, 0.7))
+lines(density(Res[, 2]), col = "blue")
+
+
+min(Res[, 2]) # [1] 174.1134
+max(Res[, 2]) # [1] 178.6783
+
+max(Res[, 3]) # [1] 173.766
+min(Res[, 3]) # [1] 169.2997
 
 
 ## after thinning 
