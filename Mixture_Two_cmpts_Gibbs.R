@@ -229,6 +229,9 @@ max(Res[, 2]) # [1] 178.6783
 max(Res[, 3]) # [1] 173.766
 min(Res[, 3]) # [1] 169.2997
 
+mean(Res[, 1]) # [1] 0.5015294
+
+
 
 ## after thinning 
 for(i in 1:3) {
