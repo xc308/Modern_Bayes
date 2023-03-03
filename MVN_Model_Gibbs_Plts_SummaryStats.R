@@ -330,6 +330,40 @@ rownames(Summary_stats_Sigma) <- c("Sig_11",
                                    "Sig_22")
 
 
+#--------------------
+# Posterior Inference
+#--------------------
+
+# approxiamte posterior probabilities and confidence regions
+# 
+# if give this test to a larger population, 
+# want to know if the average score of the 2nd one 
+  # will be higher than the 1st one
+
+# Pr(theta2 > theta1 | Data) = ?
+
+mean(Res_theta[, 2] > Res_theta[, 1])
+# [1] 0.9944
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
