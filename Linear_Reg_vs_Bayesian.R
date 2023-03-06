@@ -110,9 +110,100 @@ sqrt(diag(XtX) * sigma2 )
 # 12.2522126 15.7619762  0.5263585  0.6498086
 
 
+#---------------
+# g-prior model
+#---------------
+
+# likelihood:
+  # y|X, beta, sigma2 ~ MVN((t(X)X)_inv t(X)y, t(X)X)_inv sigma2 )
+
+# g-prior on beta:
+  # beta ~ MVN(0, g*sigma2 (t(X)X)_inv)
+
+# prior on simga2 or gamma = 1/sigma2
+  # gamma ~ Gamma(nu0/2, nu0 sigma0^2 / 2)
+
+# marginal posterior density of beta:
+  # beta|y, X, sigma2 ~ MVN(m_beta, V_beta)
+     # m_beta = g/(g+1) (t(X)X)^{-1} t(X)y
+     # V_beta = g/(g+1) (t(X)X)^{-1} sigma2
+
+# marginal posterior density of sigma2:
+  # sigma2|y, X, beta ~ InvGamma(a, b)
+    # a = 1/2(nu0 + n)
+    # b = 1/2(nu0 sigma02 + SSR_g)
+
+    # SSR_g = t(y)(I - g/1+g X(t(X)X)^{-1}t(X))y
 
 
+# parameter in the priors:
+  # g = n = length(y)
+  # nu0 = 1
+  # sigma0^2 = sigma_ols^2 = 1/n-p SSR(beta) = 8.54
 
+    # n = length(y)
+    # p = ncol(X)
+    # sigma2 <- 1/(n-p) * SSR_beta
+      # 8.542477
+
+
+# joint posterior distribution (beta, sigma2 | y, X) 
+  # can be made with Monte Carlo approximation 
+  # not necessarily with Gibbs
+
+# 1. Sample 1/sigma2 ~ Gamma(a, b)
+# 2. sample beta ~ MVN(m_beta, V_beta)
+
+
+y
+X
+# parameters in prior
+g <- n <- length(y)
+p <- ncol(X)
+nu0 <- 1
+sigma2_0 <- sigma2_ols <- 1/(n-p) * SSR_beta
+
+S <- 1e3  # number of MC simulations
+
+H_g <- g/(g+1) * X %*% solve(t(X) %*% X) %*% t(X)
+str(H_g) # num [1:12, 1:12]
+SSR_g <- t(y) %*% (diag(1, n) -  H_g) %*% y
+# 123.9618
+
+
+# sample from sigma2 ~ IG(a, b)
+a <- (nu0 + n) / 2 
+b <- (nu0 * sigma2_0 + SSR_g) / 2
+
+sigma2 <- 1/rgamma(1, shape = a, rate = b)
+
+
+# sample beta ~ MVN(m_beta, V_beta)
+m_beta <- g/(g+1) * solve(t(X) %*% X) %*% (t(X) %*% y)
+#           [,1]
+#x1 -47.3482578
+#x2  12.0988527
+#x3   1.9335717
+#x4  -0.2937635
+
+V_beta <- g/(1+g) * sigma2 * solve(t(X) %*% X)
+str(V_beta)
+# num [1:4, 1:4] 
+
+library(mvtnorm)
+beta <- rmvnorm(1, mean = m_beta, sigma = V_beta)
+
+
+U <- rmvnorm(1, mean = rep(0, length(m_beta)), 
+             sigma = diag(1, nrow = length(m_beta)))
+str(U)
+# num [1, 1:4]
+
+# U %*% chol(V_beta)
+#            x1        x2        x3        x4
+# [1,] -5.438595 -5.626524 0.2455127 0.1795727
+
+beta_alternative <- m_beta + t(U %*% chol(V_beta) ) 
 
 
 
