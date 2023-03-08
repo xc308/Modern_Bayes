@@ -85,29 +85,176 @@ sum(fit.ols$residuals^2)
           # = (-51.2939459 + 13.1070904) + (2.0947027-0.3182438) X3
 
 
+#------------------------------
 ## SSR sum of squares residuals
+#------------------------------
 ## SSR(beta) = sum_{i = 1}^n (yi - beta^t %*% xi)^2
   ## (y - X beta)^t (y - X beta)
 
 SSR_beta <- t(y - X %*% beta_ols) %*% (y - X %*% beta_ols)
 
+
+#-------
 # unbiased estimator for sigma2
+#-------
 n = length(y)
 p = ncol(X)
-sigma2 <- 1/(n-p) * SSR_beta
-# 8.542477
-sigma2 <- c(sigma2)
+sigma2_ols <- 1/(n-p-1) * SSR_beta
+# 9.762831
+sigma2_ols <- c(sigma2_ols)
 
-# the sampling variance of beta_ols: sigma2_ols
-  # (t(X)X)_{-1} sigma2
 
+#-----
+# the sampling variance of beta_ols: var[beta_ols]
+# (t(X)X)_{-1} sigma2
+#-----
 XtX <- solve(t(X) %*% X) 
+Var_beta_ols <- sigma2_ols * XtX
+# [1:4, 1:4]
 
 
-# std deviation of the beta_ols
-sqrt(diag(XtX) * sigma2 )
-#        x1         x2         x3         x4 
-# 12.2522126 15.7619762  0.5263585  0.6498086
+#----------------------------------------
+# Bayesian analysis of linear regression
+#----------------------------------------
+
+## unknown parameters of interest
+  # beta
+  # sigma2
+
+## use full conditionals of each of them + Gibbs
+
+# likelihood: y | X, beta, sigma2 ~ MVN(m_beta_ols, v_beta_ols) a function of beta
+    # prior: beta ~ MVN(beta0, Sigma0)
+        # posterior: 
+          # beta | y, X, sigma2 ~ MVN(m_beta, V_beta)
+              # var_beta_inv = (t(X) %*% X) /sigma2
+              # V_beta = (Sigma0_inv + var_beta_inv)^{-1}
+              # m_beta = (beta0 * Sigma0_inv + (t(X)%*%y) / sigm2) * V_beta
+
+# likelihood: y | X, beta, sigma2 ~ MVN(;)
+    # prior : gam = 1/sigma2 ~ Gamma(a, b)
+        # posterior:
+            # sigma2 | y, X, beta ~ InvGamma(A, B)
+                # A = a + n / 2
+                # B = (b + SSE) / 2
+
+
+#-----
+# Parameters in the prior
+#-----
+# beta0 = beta_ols    # ols estimate of beta
+# Sigma0_inv = {var[beta_ols]}^{-1} / n # unit informaion
+            #= 1/n * t(X)%*%X / sigma2
+            # sigma2 = sigma2_ols plug in
+
+# a = 1
+# b = sigma2_ols 
+
+
+beta0 = beta_ols
+Sigma0_inv = 1/n * (t(X)%*%X) /sigma2_ols  # [1:4, 1:4]
+
+a = 1
+b = sigma2_ols
+
+
+#--------
+# Gibbs sampler
+#--------
+library(mvtnorm)
+
+Gibbs_LinearReg <- function(sigma2_start , n.sim, Data = y) {
+  
+  n = length(Data)
+  
+  sigma2 = sigma2_start
+  #sigma2 = sigma2_ols
+  
+  BETA <- SIGMA2 <- NULL
+  for (i in 1:n.sim) {
+    
+    # sample beta | y, X, sigma2 ~ MVN(m_beta, V_beta)
+    V_beta = solve(Sigma0_inv + t(X) %*% X / sigma2) # 4*4
+    m_beta = V_beta %*% (Sigma0_inv %*% beta0 + t(X) %*% y / sigma2)  # 4*1
+    
+    beta = rmvnorm(1, mean = m_beta, sigma = V_beta)
+    # str(beta)  num [1, 1:4]
+    beta = t(beta) # 4*1
+    
+    # sample sigma2 | y, X, beta ~ InvGamma(A = a + n/2, B = (b + SSE_beta)/2)
+    
+    A = a + n / 2
+    SSE_beta = t(y - X %*% beta) %*% (y - X %*% beta) # scalar
+    B = (b + SSE_beta) / 2
+    
+    sigma2 = 1/rgamma(1, shape = A, rate = B)
+    
+    
+    # update the unknowns for this run
+    BETA <- rbind(BETA, t(beta)) # 1*4 
+    SIGMA2 <- rbind(SIGMA2, sigma2)
+  }
+  return(list(beta = BETA, sigma2 = SIGMA2))
+}
+
+
+
+#-------------
+# Test on data
+#-------------
+
+Res <- Gibbs_LinearReg(sigma2_start = sigma2_ols, n.sim = 1e3, Data = y)
+
+Res_beta <- Res$beta
+Res_sigma2 <- Res$sigma2
+
+
+#------
+# Plots
+#------
+
+plot(1:1e3, Res_sigma2, type = "l", 
+     main = bquote("Trace plot of "~ beta))
+
+
+head(Res_beta)
+par(mfrow = c(1, 4))
+for(idx in 1:4) {
+  plot(1:1e3, Res_beta[, idx], type = "l",
+       main = bquote("Trace plot of "~ beta[.(idx)]))
+}
+
+
+
+#---------------
+# Summary stats
+#---------------
+
+beta_pst_mean <- apply(Res_beta, 2, mean)
+sigma2_pst_mea <- mean(Res_sigma2)
+
+beta_CI <- apply(Res_beta, 2, function(x) quantile(x, c(0.025, 0.975)))
+str(t(beta_CI))
+
+sigma2_CI <- quantile(Res_sigma2, c(0.025, 0.975))
+
+beta_stats <- cbind(beta_pst_mean, t(beta_CI))
+
+sigma2_stats <- cbind(sigma2_pst_mea, t(sigma2_CI))
+
+Sum_stats <- rbind(beta_stats, sigma2_stats)
+rownames(Sum_stats) <- c("beta1", "beta2", "beta3", "beta4", "sigma2")
+colnames(Sum_stats) <- c("pst_mean", "2.5%", "97.5%")
+
+
+library(xtable)
+xtable(Sum_stats)
+
+
+Sum_stats_ols <- cbind(Sum_stats, rbind(beta_ols, sigma2_ols))
+colnames(Sum_stats_ols)[4] <- c("ols")
+
+
 
 
 #---------------
