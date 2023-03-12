@@ -325,8 +325,181 @@ plot(density(beta_pst2[, 1]), col = "red")
 
 
 
+
+#------------
+# AGAIN
+#------------
+
+load("sparrows.RData")
+head(sparrows)
+#      fledged age
+#[1,]       3   3
+#[2,]       1   3
+#[3,]       1   1
+
+str(sparrows)
+# num [1:52, 1:2]
+# each bird give birth only once, either in age 1 or 2 or...
+
+y <- sparrows[, 1]
+Age <- sparrows[, -1]
+
+# design matrix X
+X <- cbind(rep(1, length(y)), sparrows[, -1], sparrows[, -1]^2)
+head(X)
+
+yX <- cbind(y, X)
+
+colnames(yX) <- c("ofsp", "intercept", "age", "age2")
+yX_dat <- as.data.frame(yX)
+head(yX)
+#     ofsp intercept age age2
+#[1,]    3         1   3    9
+#[2,]    1         1   3    9
+
+
+## non-bayesian glm fitting for beta
+mod <- glm(y ~ age + age2, data = yX_dat, family = "poisson")
+summary(mod)
+
+# Coefficients:
+#             Estimate Std. Error z value Pr(>|z|)  
+#(Intercept)  0.27662    0.44219   0.626   0.5316  
+#age          0.68174    0.33850   2.014   0.0440 *
+#age2        -0.13451    0.05786  -2.325   0.0201 *
+  ---
+
+# can be used for comparison with Bayesian method result
+
+
+  
+#-----------------
+# Bayesian version
+#-----------------
+
+# likelihood: 
+  # yi | xi ~ Poisson (theta_x) 
+      # theta_x is the true # of off-sp
+      # theta_x = E[yi|xi]
+
+   # yi is non-neg, so use log link
+    # log(yi) = b1 + b2*age + b3*age2
+    # yi = exp(beta^t X)
+          # beta = (b1, b2, b3),
+          # X = (1, age, age2)
+
+# beta is unknown and of interest
+# prior:
+  # beta ~ iid N(b.prior.m, b.prior.sd)
+
+  # b.prior.m = 0
+  # b.prior.sd = 10
+
+
+# posterior: 
+  # beta | y, X under N likelihood and Poi prior 
+    # no closed form 
+    # resort to Metropolis
+
+
+#--------------------------------
+# Metropolis sampler for Poisson
+#--------------------------------
+
+# proposal:
+    # Beta_star ~ MVN(Beta^(s), Sigma)
+
+      # Beta^(s) = Beta_0
+      # Sigma approximated by Var[beta_ols] = sigma2 * t(X)%*%X
+          # sigma2 here is approximated var[log(y + 1/2)] 
+          # while usually sigma2 is approximated by 1/(n-p-1) * SSE
+          # but here beta is modeled when y is on log scale
+
+
+# calculate AC ratio r:
+  # logr <- sum(dpoi(y, exp(X %*% Beta_star), log = T)) - 
+            # sum(dpoi(y, exp(X %*% Beta), log = T)) + 
+            # sum(dnorm(Beta_star, rep(b.prior.m, 3), rep(b.prior.sd, 3), log = T)) - 
+            # sum(dnorm(Beta, rep(b.prior.m, 3), rep(b.prior.sd, 3), log = T))
+
+
+
+# AC or RJ
+  # u ~ runif(1)
+  # if (log(u) < logr) {
+      # Beta <- Beta_star
+      # Cnts <- Cnts + 1  # for AC ratio calculation 20% - 50%
+  #}
+
+
+library(mvtnorm)
+
+Beta_0 <- 0
+Metropolis_Poi <- function(Beta_0, b.prior.m = 0, b.prior.sd = 10, n.sim, Data = y, DM = X, burn_in) {
+  #request(mvtnorm)
+  Beta_0 <- rep(Beta_0, ncol(X))
+  
+  Beta <- Beta_0 # 1:3
+  Sig_prop <- var(log(y + 1/2)) * solve(t(X) %*% X)
+  
+  #b.prior.m <- 0
+  #b.prior.sd <- 10
+  Cnts <- 0
+  BETA <- NULL
+  for (i in 1:n.sim) {
+    # proposal:
+    Beta_star <- rmvnorm(1, mean = Beta, sigma = Sig_prop) # [1, 1:3]
+    Beta_star <- t(Beta_star) # 3*1
+    
+    
+    # AC ratio 
+    logr <- sum(dpois(y, exp(X %*% Beta_star), log = T)) -
+      sum(dpois(y, exp(X %*% Beta), log = T)) +
+      sum(dnorm(Beta_star, mean = rep(b.prior.m, ncol(X)), 
+                sd = rep(b.prior.sd, ncol(X)), log = T)) -
+      sum(dnorm(Beta, mean = rep(b.prior.m, ncol(X)), 
+                sd = rep(b.prior.sd, ncol(X)), log = T))
+    
+    
+    # AC or RJ
+    u <- runif(1)
+    if (log(u) < logr) {
+      Beta <- Beta_star
+      Cnts <- Cnts + 1
+    }
+    
+    # update desired Beta
+    BETA <- rbind(BETA, t(Beta)) # 1:3
+  }
+  
+  # calculate AC ratio for proposal tunning, 20%-50% AC ratio
+  AC_ratio <- Cnts / n.sim
+  
+  return(list(Beta_pst = BETA[(burn_in+1):n.sim, ], AC_ratio = AC_ratio))
+}
+
+#----------
+try <- rbind(t(y[1:3]), 1)
+try[1:3] # as a vector element selection
+try[1:2, ] # select first two rows
+#----------
+
+
+
+Res <- Metropolis_Poi(Beta_0 = 0, b.prior.m = 0, b.prior.sd = 10, n.sim = 500, 
+               Data = y, DM = X, burn_in = 0)
+
+
+Res$AC_ratio # [1] 0.426
+
+
+
+
+
+
+
 #--------
-# Data set
+# Data set（depreached）
 #--------
 set.seed(1)
 
