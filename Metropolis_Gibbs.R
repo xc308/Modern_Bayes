@@ -122,8 +122,264 @@ summary(lmfit)
     # than is assumed by OLS regression analysis
 
 
+S <- 1e4
+thin <- c(1,(1:1000)*(S/1000))
+head(thin) # [1]  1 10 20 30 40 50
+tail(thin) # [1]  9950  9960  9970  9980  9990 10000
+
+thin2 <- seq(1, 1e4, by = 10)
+head(thin2) # [1]  1 11 21 31 41 51
+tail(thin2)
+
+thin3 <- seq(1, 1e4, by = 9)
+head(thin3) # [1]  1 10 19 28 37 46
 
 
+head(icecore)
+
+
+#-------------------------------
+# How to code correlation C_rho
+#-------------------------------
+
+# C_rho = matrix(c(1, rho, rho^2, rho^3, 
+                #  rho, 1, rho^2, rho^3, 
+                #  rho^2, rho, 1, rho^3, 
+                #  rho^3, rho^2, rho, 1))
+
+# 1st create rho
+  # lag-1 acf
+n <- 5
+lmfit <- lm(icecore$tmp ~ icecore$co2)
+summary(lmfit)
+phi <- acf(lmfit$residuals, plot = F)$acf[2]
+
+# 2nd create exponent matrix 
+DY <- abs(outer( (1:n),(1:n) ,"-"))
+
+# 3rd create the desired correlation matrix C_rho
+phi^DY
+
+
+
+#---------------------------
+# How to code log(det(C_rho))
+#---------------------------
+
+determinant(phi^DY, log = T)
+# $modulus
+#[1] -1.241486
+#attr(,"logarithm")
+#[1] TRUE
+
+#$sign
+#[1] 1
+
+#attr(,"class")
+#[1] "det"
+
+determinant(phi.p^DY,log=TRUE)$mod
+
+
+#----------------------------
+# Metropolis - Gibbs Sampler
+#----------------------------
+
+# likelihood of data;
+  # Y|X, beta, sigma2, rho ~ MVN(X beta, sigma2 C_rho)
+
+# likehood of data as a function of beta:
+  # beta | y, X, sigma2, rho ~ MVN((t(X)X)^{-1} t(X)y, sigma2 C_rho t(X)X)^{-1})
+  
+
+# desired parameters beta, sigma2, rho
+# prior of each of them:
+
+  # beta ~ MVN(beta0, Sigma0)
+  # sigma2 ~ InvGamma(a, b)
+  # rho ~ unif(1)
+
+# posterior:
+  # beta | y, X, sigma2, rho ~ MVN(beta_n, Sigma_n)
+      # Sigma_n <- solve(Sigma0_inv + t(X) %*% solve(C_rho) %*% X / sigma2)
+      # beta_n <- Sigma_n %*% [Sigma0_inv %*% beta0 + t(X) %*% solve(C_rho) %*% y / sigma2]
+
+  # sigma2 | y, X, beta, rho ~ InvGamma(An, Bn)
+      # An <- a + n/2
+      # Bn <- b + 1/2 SSR_rho
+        # SSR_rho <- t(y - X beta) %*% solve(C_rho) %*% (y - X beta)
+
+
+# rho: 
+  # no closed form of posterior distribution
+  # Metropolis: 
+    # 1. propose rho_star ~ Unif(rho - delta, rho + delta)
+
+    # 2. r = p(rho_star|y, X, beta, sigma2) / p(rho|y, X, beta, sigma2)
+      # = p(y|X, beta, sigma2, rho_star) * p(rho_star) 
+        #/p(y|X, beta, sigma, rho) * p(rho)
+
+    # pdf density for p(y|X, beta, sigma2, rho_star) 
+      # propto det(sigma2 * C_rho_star)^{-1/2} 
+                  # exp^{1/2 t(y - X beta) (sigma2 C_rho_star) (y - X beta) }
+    
+    # pdf density for p(y|X, beta, sigma2, rho)
+      # propto det(sigma2 * C_rho)^{-1/2}
+                  # exp^{1/2 t(y - X beta) (sigma2 C_rho) (y - X beta)}
+
+    # logr = -.5 * [log(det(sigma2 C_rho_star)) - log(det(sigma2 C_rho))]
+        # -.5 * trace[(y - X beta) %*% t(y - X beta) %*% (solve(C_rho_star) - solve(C_rho))] / sigma2
+
+
+  # 3. u ~ Unif(1)
+      # log(u) < logr AC, rho <- rho_star 
+    
+
+
+#------------------------------------------
+# data, design matrix, correlation matrix
+#------------------------------------------
+
+y <- icecore$tmp
+X <- cbind(1, icecore$co2)
+
+n <- length(y)
+DY <- abs(outer(1:n, 1:n, "-"))
+str(DY) # int [1:200, 1:200]
+
+
+# to get rho need lag-1 acf of residual of ols fit
+# C_rho <- rho^DY
+
+lmfit <- lm(y ~ icecore$co2)
+summary(lmfit)
+rho <- acf(lmfit$residuals, plot = F)$acf[2]
+
+C_rho <- rho^DY # num [1:200, 1:200]
+
+
+#---------------
+# starting value
+#---------------
+
+# beta: beta_ols
+beta_ols <- lmfit$coefficients
+str(beta_ols) # Named num [1:2] -23.0241 0.0799
+
+# sigma2: sigma2_ols
+sum_lmfit <- summary(lmfit)
+sigma2_ols <- sum_lmfit$sigma^2  # [1] 2.349845
+
+# rho: lag-1 acf of residual from ols fit
+rho_ols <- acf(lmfit$residuals, plot = F)$acf[2]
+# [1] 0.5165516
+
+
+#---------------------
+# Parameters in prior
+#---------------------
+
+beta0 <- rep(0, ncol(X))
+#Sigma0 <- diag(1000, nrow = ncol(X))
+Sigma0_inv <- diag(1/1000, nrow = ncol(X))
+
+a = 1/2
+b = 1/4
+
+delta = 0.1
+
+
+#----------------------------------------------------
+# Metropolis-Gibbs sampler for error-correlated data
+#----------------------------------------------------
+library(mvtnorm)
+
+Metro_Gibbs_er_corr <- function(beta0, sigma2_0, rho_0, Data = y, DM = X, n.sim, burn.in, 
+         Thinning = T, thin) {
+  
+  n <- length(y)
+  sigma2 <- sigma2_0
+  rho <- rho_0
+  
+  Cnts <- 0
+  OUTPUT <- NULL
+  
+  for (i in 1:n.sim) {
+    
+    # sample beta ~ MVN(beta_n, Sigma_n)
+    C_rho <- rho^DY
+    Sigma_n <- solve(Sigma0_inv + t(X) %*% solve(C_rho) %*% X / sigma2)
+    beta_n <- Sigma_n %*% (Sigma0_inv %*% beta0 + t(X) %*% C_rho %*% y / sigma2)
+    
+    beta <- rmvnorm(1, mean = beta_n, sigma = Sigma_n)
+    beta <- t(beta) # 2*1
+    
+    
+    # sample sigma2 ~ InvGamma(An, Bn)
+    An <- a + n/2
+    SSR_r <- t(y - X %*% beta) %*% solve(C_rho) %*% (y - X %*% beta)
+    Bn <- b + SSR_r / 2
+    
+    sigma2 <- 1/rgamma(1, shape = An, rate = Bn)
+    
+    
+    # sample rho using Metropolis
+    # propose: rho must be in (0, 1)
+    rho_star <- abs(runif(1, rho - delta, rho + delta))
+    rho_star <- min(rho_star, 2 - rho_star) 
+    
+  
+    # calculate r or logr
+    C_rho_star <- rho_star^DY
+    logr <- -1/2 * (determinant(C_rho_star, log = T)$mod - 
+                      determinant(C_rho, log = T)$mod) -
+      1/2 * sum(diag((y - X %*% beta) %*% t(y - X %*% beta) %*% 
+                       (solve(C_rho_star) - solve(C_rho)))) / sigma2
+    
+    
+    # AC or RJ
+    u <- runif(1)
+    if (log(u) < logr) {
+      rho <- rho_star
+      Cnts <- Cnts + 1
+    }
+    
+    # Collect 
+    OUTPUT <- rbind(OUTPUT, cbind(t(beta), sigma2, rho))
+    
+    # print message
+    cat(i, Cnts/i, beta, sigma2, rho,"\n") 
+  }
+  
+  # AC ratio
+  AC_ratio <- Cnts / n.sim
+  
+  # return
+  if (Thinning) {
+    thin.idx <- c(1, (1:(n.sim / thin)) * thin)
+    return(list(Pst_results = OUTPUT[thin.idx, ], AC_ratio = AC_ratio))
+  } else {
+    return(list(Pst_results = OUTPUT, AC_ratio = AC_ratio))
+  }
+}
+
+
+Res <- Metro_Gibbs_er_corr(beta0 = beta_ols, sigma2_0 = sigma2_ols, rho_0 = rho_ols, 
+                    Data = y, DM = X, n.sim = 1e3, Thinning = F)
+
+
+Res$AC_ratio # [1] 0.032
+Res$AC_ratio 
+
+thin = 10; n.sim <- 1e4; burn.in <- 1000
+c(1, (1:(n.sim / thin)) * thin)
+
+S <- 1000
+odens<-S/1000
+
+10000%%odens==0
+
+c(burn.in, (1:(n.sim / thin)) * thin + burn.in)
 
 
 
