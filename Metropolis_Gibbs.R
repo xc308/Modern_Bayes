@@ -239,6 +239,7 @@ determinant(phi.p^DY,log=TRUE)$mod
 #------------------------------------------
 # data, design matrix, correlation matrix
 #------------------------------------------
+load("icecore.RData")
 
 y <- icecore$tmp
 X <- cbind(1, icecore$co2)
@@ -284,7 +285,7 @@ beta0 <- rep(0, ncol(X))
 Sigma0_inv <- diag(1/1000, nrow = ncol(X))
 
 a = 1/2
-b = 1/4
+b = 1/2
 
 delta = 0.1
 
@@ -309,7 +310,7 @@ Metro_Gibbs_er_corr <- function(beta0, sigma2_0, rho_0, Data = y, DM = X, n.sim,
     # sample beta ~ MVN(beta_n, Sigma_n)
     C_rho <- rho^DY
     Sigma_n <- solve(Sigma0_inv + t(X) %*% solve(C_rho) %*% X / sigma2)
-    beta_n <- Sigma_n %*% (Sigma0_inv %*% beta0 + t(X) %*% C_rho %*% y / sigma2)
+    beta_n <- Sigma_n %*% (Sigma0_inv %*% beta0 + t(X) %*% solve(C_rho) %*% y / sigma2)
     
     beta <- rmvnorm(1, mean = beta_n, sigma = Sigma_n)
     beta <- t(beta) # 2*1
@@ -344,42 +345,191 @@ Metro_Gibbs_er_corr <- function(beta0, sigma2_0, rho_0, Data = y, DM = X, n.sim,
       Cnts <- Cnts + 1
     }
     
-    # Collect 
-    OUTPUT <- rbind(OUTPUT, cbind(t(beta), sigma2, rho))
-    
-    # print message
-    cat(i, Cnts/i, beta, sigma2, rho,"\n") 
+    # Collect with or w/o thinning
+    if (Thinning) {
+      if (i %% thin == 0) { # i is a multiple of thin, e.g.25, collect
+        OUTPUT <- rbind(OUTPUT, cbind(t(beta), sigma2, rho))
+        cat(i, Cnts/i,"\n")
+      }
+    } else {
+      OUTPUT <- rbind(OUTPUT, cbind(t(beta), sigma2, rho))
+      cat(i, Cnts/i,"\n")
+    }
   }
   
   # AC ratio
   AC_ratio <- Cnts / n.sim
   
   # return
-  if (Thinning) {
-    thin.idx <- c(1, (1:(n.sim / thin)) * thin)
-    return(list(Pst_results = OUTPUT[thin.idx, ], AC_ratio = AC_ratio))
-  } else {
-    return(list(Pst_results = OUTPUT, AC_ratio = AC_ratio))
-  }
+  return(list(Pst_results = OUTPUT, AC_ratio = AC_ratio))
+  
+  
+  #if (Thinning) {
+    #thin.idx <- c(1, (1:(n.sim / thin)) * thin)
+    #return(list(Pst_results = OUTPUT[thin.idx, ], AC_ratio = AC_ratio))
+  #} else {
+   # return(list(Pst_results = OUTPUT, AC_ratio = AC_ratio))
+  #}
+  
 }
 
 
-Res <- Metro_Gibbs_er_corr(beta0 = beta_ols, sigma2_0 = sigma2_ols, rho_0 = rho_ols, 
+#---------------------------
+# n.sim = 1000 w/o thinning
+#---------------------------
+Res <- Metro_Gibbs_er_corr(beta0 = beta_ols, sigma2_0 = sigma2_ols, 
+                           rho_0 = rho_ols, 
                     Data = y, DM = X, n.sim = 1e3, Thinning = F)
 
 
-Res$AC_ratio # [1] 0.032
-Res$AC_ratio 
+Res$AC_ratio  # [1] 0.258 Acceptable
+Results_1000 <- Res$Pst_results
 
-thin = 10; n.sim <- 1e4; burn.in <- 1000
-c(1, (1:(n.sim / thin)) * thin)
+pst_rho <- Results_1000[, 4]
 
-S <- 1000
-odens<-S/1000
+par(mfrow = c(1, 2))
+plot(1:1e3, pst_rho, type = "l", 
+     xlab = "scan", ylab = expression(rho),
+     main = bquote("Trace plot of " ~ rho))
 
-10000%%odens==0
+acf(pst_rho, ci.col = "gray")
+acf(pst_rho)$acf[2]
+# [1] 0.9616772
 
-c(burn.in, (1:(n.sim / thin)) * thin + burn.in)
+library(coda)
+effectiveSize(pst_rho)
+# 19.51615  out of 1000
+
+## simulated samples are highly correlated 
+  # with lag-1 auto correlation 0.96
+  # eff size 19 out of 1000
+
+
+apply(Results_1000, 2, effectiveSize)
+#                       sigma2       rho 
+# 40.640169 40.695030  8.752703 19.516152
+
+
+#-------------------------------------
+# n.sim = 1e4, Thinning = T, thin = 25
+#-------------------------------------
+
+Res_1e4 <- Metro_Gibbs_er_corr(beta0 = beta_ols, sigma2_0 = sigma2_ols, 
+                               rho_0 = rho_ols, Data = y, DM = X, 
+                               n.sim = 1e4, Thinning = T, thin = 25)
+
+
+Res_1e4$AC_ratio #[1] 0.2817 
+pst_rho_1e4 <- Res_1e4$Pst_results[, 4]
+
+
+plot(1:400, pst_rho_1e4, xlab = "scan/25", 
+     ylab = expression(rho), type = "l")
+
+acf(pst_rho_1e4, xlab = "lag/25") # lag 25th
+
+# to get lag-1 of samples after thinning
+acf(pst_rho_1e4, plot = F, )$acf[2] 
+# [1] 0.4488623
+
+
+#------
+# Plots
+#------
+library(coda)
+
+pdf("Trace_ACF_MH.pdf")
+layout(mat = matrix(c(1,2), nrow = 1, ncol = 2))
+
+pdf("Trace_ACF_MH_2.pdf")
+layout(mat = matrix(c(1,2, 3, 4), nrow = 2, ncol = 2))
+
+pdf("Trace_ACF_MH_3.pdf")
+layout(mat = matrix(c(1,2, 3, 4), nrow = 2, ncol = 2, byrow = T))
+
+for (idx in 1:2) {
+  plot(100:400, Res_1e4$Pst_results[100:400, idx], 
+       xlab = "scan/25", 
+       ylab = bquote(beta[.(idx)] ~ "| Data"),
+       type = "l", 
+       main = bquote("Trace plot of " ~ beta[.(idx)]))
+
+  ACF <- acf(Res_1e4$Pst_results[, idx], plot = F)$acf[2]
+  EFF <- effectiveSize(Res_1e4$Pst_results[, idx])
+  
+  acf(Res_1e4$Pst_results[, idx], xlab = "lag/25",
+      ci.col = "gray", 
+      main = bquote(atop("ACF of " ~ beta[.(idx)],
+                         atop("lag-1 acf: " ~ .(round(ACF, 2)),
+                         "Effsize: " ~ .(round(EFF, 2))))),
+      cex = 0.35)
+}
+dev.off()
+
+
+
+#--------------------
+# summary statistics
+#--------------------
+
+# posterior mean
+pst_mean <- apply(Res_1e4$Pst_results, 2, mean)
+pst_mean[2]
+
+# posterior quantiles
+CI <- apply(Res_1e4$Pst_results, 2, function(x) quantile(x, c(0.025, 0.975)))
+CI_t <- t(CI)
+CI_t[2,]
+
+Sum_Stats <- cbind(pst_mean, CI_t)
+rownames(Sum_Stats) <- c("beta_1", "beta_2", "sigma2", "rho")
+Sum_Stats <- round(Sum_Stats, 3)
+
+library(xtable)
+xtable(Sum_Stats)
+
+
+#---------
+# Remarks
+#---------
+
+# posterior of beta-2 (slop) is 0.029
+# still indicating positive relationship between 
+  # temp and CO2, 
+  # but not as strong as the one from OLS (0.07985291)
+
+#beta_ols
+# (Intercept)  icecore$co2 
+#-23.02414043   0.07985291 
+
+pdf("Compare_OLS_GLM.pdf", family = "Times")
+layout(mat = matrix(c(1, 2), nrow = 1, ncol = 2))
+plot(density(Res_1e4$Pst_results[, 2], adj = 2), # adjust  for smooth 
+     xlab = expression(beta[2]), 
+     ylab = "posterior marginal density", 
+     main = "")
+abline(v = pst_mean[2], lwd = 1.5, col = "red")
+abline(v = CI_t[2,], lwd = 1, col = "gray")
+
+
+plot(icecore$co2, icecore$tmp, xlab = "CO2", ylab = "Temp")
+abline(a = beta_ols[1], b = beta_ols[2], col = "gray", lwd = 2)
+abline(a = pst_mean[1], b = pst_mean[2], col = "black", lwd = 2)
+legend(180, 2.5, legend = c("OLS", "BayesGLM"),
+       col = c("gray", "black"), bty = "n", lwd = c(2, 2),
+       cex = 0.85)
+dev.off()
+
+## GLS put a weight to data according to temporal correlation
+  # the further temporal apart, the less correlation
+  # so some data point although with high Temp (y) values
+  # but is temporally far away, so less weighted
+  # weaker slope
+
+## While OLS treated different data with the same weight
+  # easier to be influenced by those high-value y. 
+
+
 
 
 
