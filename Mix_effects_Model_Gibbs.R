@@ -91,6 +91,31 @@ eta_0 <- p + 2
 a <- b <- 1
 
 
+## Remark:
+# the parameters in the prior distribution (hyper-prior)
+  # uses ols estimates reflect the info is unbiased but 
+  # weak. 
+
+# For example, 
+  # 1. the quantile of theta[, 2] slope under this 
+  # hyper-prior setting, the prior of theta[, 2] slope has
+  # 95% quantile of (-3.041309, 9.116819)
+  # which is very large
+
+theta_prior <- rmvnorm(100, mean = mu_0, sigma = L_0)
+quantile(theta_prior[, 2], c(0.025, 0.975))
+#      2.5%     97.5% 
+# -3.041309  9.116819 
+
+
+  # 2. prior distribution on Sigma ~ InvWishart(eta_0, S0_inv)
+    # set S0 = sample covariance cov(BETA.LS)
+    # set eta_0 = p+2
+    # ensures E[Sigma] = 
+
+
+
+
 #-----------------------------------------
 # Starting value of parameters of interest
 #-----------------------------------------
@@ -162,9 +187,8 @@ Gibbs_Mixeff <- function(beta_0, theta_0, Sigma_0, sig2_0, n.sim, Data = Y, DM =
     
     S_theta <- (t(beta) - c(theta)) %*% t((t(beta) - c(theta)))
     Sn <- S_0 + S_theta
-    Sn_inv <- solve(Sn)
     
-    Sigma <- riwish(v = eta_n, S = Sn_inv) # 2*2
+    Sigma <- riwish(v = eta_n, S = Sn) # 2*2
     
     
     # update sig2 ~ InvGamma(An, Bn)
@@ -204,6 +228,28 @@ head(Res_500$Beta_pst)
 head(Res_500$theta_pst)
 head(Res_500$Sigma_pst)
 head(Res_500$sig2_pst)
+
+
+#---------
+# Plots
+#---------
+
+plot(1:50000, Res_500$Beta_pst[, 1], type = "l", 
+     xlab = "iterations", 
+     ylab = bquote(beta[0] ~ "|Data"))
+
+
+plot(1:50000, Res_500$Beta_pst[, 2], type = "l", 
+     xlab = "iterations", 
+     ylab = bquote(beta[1] ~ "|Data"))
+
+
+str(Res_500$Beta_pst)
+head(Res_500$Beta_pst[, 1])
+
+
+
+
 
 
 head(Y, 2)
