@@ -108,11 +108,15 @@ quantile(theta_prior[, 2], c(0.025, 0.975))
 # -3.041309  9.116819 
 
 
-  # 2. prior distribution on Sigma ~ InvWishart(eta_0, S0_inv)
-    # set S0 = sample covariance cov(BETA.LS)
+  # 2. prior distribution on Sigma ~ InvWishart(eta_0, S_0)
+    # set S_0 = sample covariance cov(BETA.LS)
     # set eta_0 = p+2
-    # ensures E[Sigma] = 
+    # to ensures E[Sigma] = 1/(eta_0 - p - 1) * S_0 = S_0 
+      # which is the sample covariance matrix of the OLS estimates
 
+  # 3. prior dist on sig2 ~ InvGamma(1, 1)
+    # is essentially within school sample variance 
+    # with very vague mean = a/b = 1
 
 
 
@@ -139,7 +143,8 @@ library(mvtnorm) # for rmvnrom
 library(MCMCpack) # for inverse wishart
 #riwish(v, S)
 
-Gibbs_Mixeff <- function(beta_0, theta_0, Sigma_0, sig2_0, n.sim, Data = Y, DM = X) {
+Gibbs_Mixeff <- function(beta_0, theta_0, Sigma_0, sig2_0, n.sim, 
+                         Data = Y, DM = X, Thinning = T, thin = 10) {
   
   #idx <- sort(unique(nels$sch_id))
   #m <- length(idx) # 100 schools
@@ -204,17 +209,29 @@ Gibbs_Mixeff <- function(beta_0, theta_0, Sigma_0, sig2_0, n.sim, Data = Y, DM =
     sig2 <- 1/rgamma(1, shape = An, rate = Bn)
     
     
-    # collect desired parameters of this iteration i
-    BETA <- rbind(BETA, beta)       # nj *2
-    THETA <- rbind(THETA, t(theta)) # 1*2
-    SIGMA <- rbind(SIGMA, c(Sigma)) # 1*4
-    SIG2 <- rbind(SIG2, sig2)       # 1
+    # collect desired parameters of this iteration i without thinnng
+    #BETA <- rbind(BETA, beta)       # nj *2
+    #THETA <- rbind(THETA, t(theta)) # 1*2
+    #SIGMA <- rbind(SIGMA, c(Sigma)) # 1*4
+    #SIG2 <- rbind(SIG2, sig2)       # 1
+    
+    
+    # return with thinning
+    if (Thinning) {
+      if (i %% thin == 0) {
+        BETA = rbind(BETA, beta) 
+        THETA = rbind(THETA, t(theta))
+        SIGMA = rbind(SIGMA, c(Sigma))
+        SIG2 = rbind(SIG2, sig2)
+      }
+    }
   }
-  
-  # return
-  return(list(Beta_pst = BETA, theta_pst = THETA, 
-              Sigma_pst = SIGMA, sig2_pst = SIG2))
-}
+  # return results after thinning
+  return(list(Beta_pst = BETA, 
+              Theta_pst = THETA, 
+              Sigma_pst = SIGMA, 
+              sig2_pst = SIG2))
+}  
 
 
 #-----------
@@ -233,19 +250,227 @@ head(Res_500$sig2_pst)
 #---------
 # Plots
 #---------
+par(mfrow = c(1, 2))
 
-plot(1:50000, Res_500$Beta_pst[, 1], type = "l", 
-     xlab = "iterations", 
-     ylab = bquote(beta[0] ~ "|Data"))
+for (j in 1:2) {
+  plot(1:50000, Res_500$Beta_pst[, j], type = "l", 
+       xlab = "iterations", 
+       ylab = bquote(beta[.(j-1)] ~ "| Data"),
+       main = "")
+}
 
 
-plot(1:50000, Res_500$Beta_pst[, 2], type = "l", 
-     xlab = "iterations", 
-     ylab = bquote(beta[1] ~ "|Data"))
+#------------------------------
+# check samples autocorrelation
+#------------------------------
+library(coda)
+# lag-1
+apply(Res_500$Beta_pst, 2, function(x) acf(x)$acf[2])
+# [1] 0.06889570 0.02063625
+
+# lag-10
+apply(Res_500$Beta_pst, 2, function(x) acf(x)$acf[11])
+# [1] 0.0792868 0.0805535
 
 
-str(Res_500$Beta_pst)
-head(Res_500$Beta_pst[, 1])
+str(Res_500$theta_pst)
+# num [1:500, 1:2] 
+apply(Res_500$theta_pst, 2, function(x) acf(x)$acf[2])
+# [1] 0.1362201 0.6024050
+apply(Res_500$theta_pst, 2, function(x) acf(x)$acf[11])
+# [1]  0.003052509 -0.006553851
+
+
+apply(Res_500$Sigma_pst, 2, function(x) acf(x)$acf[2])
+# [1] 0.3338999 0.7087971 0.7087971 0.7688635
+apply(Res_500$Sigma_pst, 2, function(x) acf(x)$acf[11])
+# [1] -0.03187579  0.13013764  0.13013764 0.16968983
+
+
+apply(Res_500$sig2_pst, 2, function(x) acf(x)$acf[2])
+# [1] 0.1649147
+apply(Res_500$sig2_pst, 2, function(x) acf(x)$acf[11])
+# [1] 0.04057485
+
+
+## lag-1 auto-correlation of theta, esp. the 2nd theta, 
+# and 4 Sigma_pst all have relatively high auto-correlations
+
+## while lag-10 AC correlation of every sequence is low
+## so thinning is indicated, and thin = 10. 
+
+
+#----------------------
+# Results with thinning
+#----------------------
+
+Res_thin10 <- Gibbs_Mixeff(beta_0 = beta_0, theta_0 = theta_0, Sigma_0 = Sigma_0,
+             sig2_0 = sig2_0, n.sim = 5000, Data = Y, DM = X, 
+             Thinning = T, thin = 10)
+
+# str(Res_thin10$Beta_pst) # num [1:50000, 1:2]
+# str(Res_thin10$sig2_pst) # num [1:500, 1]
+
+
+
+#----------
+# Plots
+#----------
+
+par(mfrow = c(1, 2))
+
+for (j in 1:2) {
+  plot(1:50000, Res_thin10$Beta_pst[, j], type = "l", 
+       xlab = "iterations (scans) / 10", 
+       ylab = bquote(beta[.(j-1)] ~ "|Data"),
+       main = "")
+}
+
+
+for (j in 1:2) {
+  plot(1:500, Res_thin10$Theta_pst[, j], type = "l", 
+       xlab = "iterations (scans) / 10", 
+       ylab = bquote(theta[.(j)] ~ "| Data"),
+       main = "")
+}
+
+
+par(mfrow = c(2, 2))
+for (j in 1:4) {
+  plot(1:500, Res_thin10$Sigma_pst[, j], type = "l", 
+       xlab = "iterations (scans) / 10", 
+       ylab = bquote(Sigma[.(j)] ~ "| Data"),
+       main = "")
+}
+
+par(mfrow = c(1, 1))
+plot(1:500, Res_thin10$sig2_pst, type = "l", 
+     xlab = "iterations (scans) / 10",
+     ylab = bquote(sigma^2 ~ "| Data"),
+     main = "")
+
+
+## Density
+par(mfrow = c(1, 2))
+pdf("posterior density.pdf")
+plot(density(Res_thin10$Theta_pst[, 2], adj = 2), 
+     xlab = "slope parameter", 
+     ylab = "Posterior density", 
+     xlim = range(Res_thin10$Beta_pst[, 2]), 
+     lwd = 2, main = "")
+
+lines(density(Res_thin10$Beta_pst[, 2], adj = 2), 
+      col = "gray", lwd = 2)
+
+legend(-5, 1, legend = c(expression(theta[2]), expression(tilde(beta)[2])),
+       lwd = c(2, 2), col = c("black", "gray"), 
+       bty = "n")
+dev.off()
+
+
+# theta_pst[, 2]
+  # posterior density of the slope for any one school
+
+# beta[, 2]
+  # posterior predictive distribution of slope
+
+
+
+#--------------------
+# Quantile of theta 2
+#--------------------
+quantile(Res_thin10$Theta_pst[, 2], c(.025, 0.975))
+#     2.5%    97.5% 
+# 1.817438 2.895650 
+
+# compare to prior quantile:
+quantile(theta_prior[, 2], c(0.025, 0.975))
+#      2.5%     97.5% 
+# -3.041309  9.116819 
+
+# indicates a strong alteration of data information
+# theta[2] 95% does not include 0 or negative values
+  # indicates the majority school-level average slope
+  # is positive
+
+
+#--------------------------------
+# Posterior distribution of beta
+#--------------------------------
+
+# samples from this distribution can be sample from 
+  # MVN(theta_pst, Sigma_pst)
+  # for each scan
+
+# this posterior predictive distribution is more spread out
+  # then theta's
+  # reflecting heterogenity in slope across schools
+
+# Pr(beta[, 2] < 0 | y, X) = 
+
+sum(Res_thin10$Beta_pst[, 2] < 0) / 50000
+# [1] 0.07858
+# small but not negligible
+
+
+
+head(Res_thin10$Beta_pst)
+str(Res_thin10$Beta_pst)
+# num [1:50000, 1:2]
+
+
+#Beta_pst_mean <- Res_thin10$Beta_pst / 500 
+# 500 samples for each school
+# get the posterior mean of Beta
+#str(Beta_pst_mean)
+# num [1:50000, 1:2]
+range(Beta_pst_mean[, 1])
+range(Beta_pst_mean[, 2])
+
+range(Res_thin10$Beta_pst[, 1])
+range(Res_thin10$Beta_pst[, 2])
+
+## Averaging 500 samplers for each of 100 schools
+pst_avg <- NULL
+for (i in 1:100) {
+  total <- matrix(0, 1, 2)
+  for (j in 0:4) {
+    total = total + Res_thin10$Beta_pst[j * 100 + i, ]
+  }
+  pst_avg <- rbind(pst_mean, total/500)
+}
+str(pst_avg)
+#  num [1:100, 1:2]
+head(pst_avg)
+range(pst_avg[, 1])
+range(pst_avg[, 2])
+
+
+
+plot(range(nels[, 3]), range(nels[, 4]), 
+     xlab = "SES", ylab = "Math Score", 
+     type = "n")
+for (j in 1:m) {
+  abline(a = Res_thin10$Beta_pst[j, 1], b = Res_thin10$Beta_pst[j, 2], 
+         col = "gray")
+}
+
+abline(a = Res_thin10$Theta_pst[, 1], 
+       b = Res_thin10$Theta_pst[, 2], 
+       lwd = 2)
+
+# compare to the original the school-wise regression lines
+# the posterior regression line scattered more closely
+# to each other 
+# reflecting the heirarchical model is able to share
+# information across groups and shrinks extreme regression 
+# line to the across-group average
+
+# in particular, hardly any regression line is negative
+# when sharing info across groups. 
+
+
+
 
 
 
