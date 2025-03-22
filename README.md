@@ -1,4 +1,4 @@
-# Ln_ModernBayes_Duke
+# Modern Bayes
 
 - NormalGamma distribution:
   - when to use
