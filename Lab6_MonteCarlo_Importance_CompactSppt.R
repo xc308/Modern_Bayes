@@ -1,6 +1,6 @@
-#=====================================
-# MonteCarlo_Importance_Compact_Spport
-#=====================================
+#==============================================
+# MonteCarlo_Importance_Sampling_Compact_Spport
+#==============================================
 
 # evaluate I = int_{-inf}^{inf} exp(-x^4) dx
 # Method : Monte Carlo Integration
