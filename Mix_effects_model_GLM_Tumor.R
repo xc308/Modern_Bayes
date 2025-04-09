@@ -1,5 +1,5 @@
 #==================================
-# Hoff Chp11 GL Mix effects Model
+# M-H Sampler for Mix Effects Model
 #==================================
 # Analysis of tumor location data
 
