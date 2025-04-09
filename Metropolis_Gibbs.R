@@ -1,5 +1,5 @@
 #=======================================
-# Hoff 10.5 Combing Metropolis and Gibbs
+# Combing Metropolis and Gibbs
 #=======================================
 
 load("icecore.RData")
