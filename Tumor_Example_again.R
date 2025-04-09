@@ -1,6 +1,6 @@
-#=====================
-# Tumor Example again
-#=====================
+#==========================================
+# M-H sampler for Tumor Location Detection
+#==========================================
 
 load("tumorLocation.RData")
 
