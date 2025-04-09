@@ -1,5 +1,5 @@
 #===========================================
-# Hoff_Chp7 Missing value (Pima health data)
+# Missing value (Pima health data)
 #===========================================
 
 # Pima.tr data set is in MASS package
