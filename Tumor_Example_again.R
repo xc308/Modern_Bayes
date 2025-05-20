@@ -3,8 +3,8 @@
 #==========================================
 
 Aim:
-     - Construct a Bayesian generalised linear mixed effects model to detect tumour location
-     - Sampling methods: hybrid Metropolis - Gibbs
+    # - Construct a Bayesian generalised linear mixed effects model to detect tumour location
+    # - Sampling methods: hybrid Metropolis - Gibbs
 
 
 load("tumorLocation.RData")
