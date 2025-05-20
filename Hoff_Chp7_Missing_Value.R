@@ -1,6 +1,9 @@
 #===========================================
 # Missing value (Pima health data)
 #===========================================
+# Aim:
+    # - Construct a Bayesian Multivariate Normal model to input missing health data
+
 
 # Pima.tr data set is in MASS package
 install.packages("MASS")
