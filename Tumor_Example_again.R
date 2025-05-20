@@ -1,6 +1,11 @@
 #==========================================
-# M-H sampler for Tumor Location Detection
+# M-H sampler for Tumour Location Detection
 #==========================================
+
+Aim:
+     - Construct a Bayesian generalised linear mixed effects model to detect tumour location
+     - Sampling methods: hybrid Metropolis - Gibbs
+
 
 load("tumorLocation.RData")
 
