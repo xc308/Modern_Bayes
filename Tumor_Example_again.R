@@ -2,7 +2,7 @@
 # M-H sampler for Tumour Location Detection
 #==========================================
 
-Aim:
+# Aim:
     # - Construct a Bayesian generalised linear mixed effects model to detect tumour location
     # - Sampling methods: hybrid Metropolis - Gibbs
 
