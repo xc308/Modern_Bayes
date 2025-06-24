@@ -121,7 +121,7 @@ for (s in 1:n.sim) {
   S_theta = (t(Y.fll) - c(theta)) %*% t(t(Y.fll) - c(theta))
   S_n = S0 + S_theta
   
-  Sig <- riwish(v = eta_n, S = S_n)
+  Sig <- riwish(v = eta_n, S = solve(S_n))
   #Sig <- solve(rwish(v = eta_n, S = solve(S_n)))
 
   
