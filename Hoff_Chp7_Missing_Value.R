@@ -112,13 +112,13 @@ for (s in 1:n.sim) {
   L_n = solve(iL0 + n * iSig)
   mu_n = L_n %*% (iL0 %*% mu0 + n * iSig %*% ybar)
   
-  theta <- rmvnorm(1, mean = mu_n, sigma = L_n)   # a row vector
+  theta <- rmvnorm(1, mean = mu_n, sigma = L_n)   # a matrix of one row and p columns
   theta <- t(theta)
   
   # sample Sig | y1...yn, theta ~ InvWishart(eta_n, S_n)
   eta_n = eta0 + n
   
-  S_theta = (t(Y.fll) - c(theta)) %*% t(t(Y.fll) - c(theta))
+  S_theta = (t(Y.fll) - c(theta)) %*% t(t(Y.fll) - c(theta)) # c() turns a one row matrix to a vector w/o dimension
   S_n = S0 + S_theta
   
   Sig <- riwish(v = eta_n, S = solve(S_n))
