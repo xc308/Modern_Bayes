@@ -85,7 +85,7 @@ X <- cbind(rep(1, ncol(Y)), poly(xs, 4, raw = T))
 
 fit2 <- lm(log_Y_avg ~ -1 + X[, 1:3]) # quadratic
 fit3 <- lm(log_Y_avg ~ -1 + X[, 1:4]) # cubic
-fit4 <- lm(log_Y_avg ~ -1 + X[, 1:5]) # quatic
+fit4 <- lm(log_Y_avg ~ -1 + X[, 1:5]) # aquatic; -1 here is to tell lm() don't add additional intercpt column in design matrix as the first column of X is already the intercept. 
 
 
 y2 <- X[, 1:3] %*% fit2$coefficients
